@@ -1,13 +1,14 @@
 BOARD_SIZE = 3
 MIN_WORD_LENGTH = 3
 
-test_board = [('a', 'b', 'c'),
-              ('d', 'e', 'f'),
-              ('g', 'h', 'i')]
+test_board_size4 = [('b', 'a', 'r', 'i'),
+                    ('e', 'c', 'n', 'u'),
+                    ('l', 'a', 'o', 'm'),
+                    ('i', 'v', 'p', 's')]
 
-test_board2 = [('b', 'a', 'r'),
-              ('e', 'c', 'n'),
-              ('l', 'a', 'o')]
+test_board_size3 = [('b', 'a', 'r'),
+                    ('e', 'c', 'n'),
+                    ('l', 'a', 'o')]
 
 
 def is_acceptable(word):
@@ -20,7 +21,10 @@ def is_acceptable(word):
     def is_possessive(w):
         return word.strip()[-2:] == "'s"
 
-    return is_lowercase(word) and (not is_possessive(word))
+    def is_long_enough(w):
+        return len(w) > 2
+
+    return is_lowercase(word) and (not is_possessive(word)) and is_long_enough(word)
 
 # Um... let's call this a testing suite.
 assert is_acceptable("marketplace") and not is_acceptable("zygote's") and not is_acceptable("Albert")
@@ -32,7 +36,64 @@ def filter_acceptable(list_of_words):
 # borrow Unix built-in dictionary
 dictionary_list = filter_acceptable([line for line in open('/usr/share/dict/words', 'r')])
 print("built a dictionary of %d English words" % (len(dictionary_list)))
-# ..and turn it into a trie.
+# ..and turn it into a trie, which would help searching for words A LOT.
+
+
+def build_trie(words):
+    """
+    Create a trie out of a flat list of words. Trie will be a dict of dicts (of dicts, etc).
+    Example:
+    ["foo","foobar","bar","baz"] =>
+    {f:
+     {o:
+      {o: { None: None},
+       b:
+        {a:
+         {r: {None: None }}}}},
+     b:
+      {a:
+       {r: {None: None},
+        z:{None: None}}}}
+    """
+    # we'll have 26 choices on the first level
+    root_dict = {}
+    for word in words:
+        current_dict = root_dict
+        # start adding letters to the dict on the corresponding level, beginning with root
+        for letter in word:
+            current_dict = current_dict.setdefault(letter, {})
+        # a word is now represented with keys in nested dicts -- terminate it
+        current_dict.setdefault(None)
+    return root_dict
+
+test_trie = build_trie(["bar", "baz", "bars"])
+print(test_trie)
+
+#print("now building the big trie")
+#trie_dict = build_trie(dictionary_list)
+
+
+def is_word_in_trie(word, trie):
+    idx = 0
+    done = False
+    current_dict = trie
+    while not done:
+        letter = word[idx]
+        if not letter in current_dict:
+            return False
+        # continue with the rest of the letters
+        current_dict = current_dict[letter]
+        idx += 1
+        if idx >= len(word): # reached the end of the word
+            return not current_dict[None]
+
+assert not is_word_in_trie("foobar", test_trie)
+assert not is_word_in_trie("bara", test_trie)
+assert not is_word_in_trie("baza", test_trie)
+assert is_word_in_trie("bar", test_trie)
+assert is_word_in_trie("bars", test_trie)
+assert is_word_in_trie("baz", test_trie)
+
 
 def get_neighbours(v):
     row = v[0]
@@ -44,7 +105,7 @@ assert get_neighbours((2, 2)) == [(1, 1), (1, 2), (1, 3), (2, 1), (2, 3), (3, 1)
 assert get_neighbours((1, 1)) == [(1, 2), (2, 1), (2, 2)]
 
 
-def dfs(graph, vertex):
+def find_words_dfs(graph, vertex):
     """
     graph - a square list of tuples,
     vertex - a Node representing the starting cell
@@ -82,12 +143,12 @@ class BoggleSolver:
     def play(self):
         return []
 
-# Now let's play some Boggle!
 
+# Now let's play some Boggle!
 result = []
 for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
-    words_at_start = dfs(test_board2, start)
-    print("found %d paths starting at %s" %(len(words_at_start), start,))
+    words_at_start = find_words_dfs(test_board_size3, start)
+    print("found %d paths (maybe-words) starting at %s" %(len(words_at_start), start,))
     result = result + words_at_start
 
 for line in result:
@@ -98,30 +159,3 @@ for line in result:
 # OK that works, but it is slow as hell, because we keep looking for all possible paths, even when it's obviously not
 # leading to any real word! We need to add pruning of hopeless paths, and we can do it if we convert our dictionary into
 # a TRIE.
-
-def build_trie(words):
-    """
-    Create a trie out of a flat list of words. Trie will be a dict of dicts (of dicts, etc).
-    Example:
-    ["foo","foobar","bar","baz"] =>
-    {f:
-     {o:
-      {o: { None: None},
-       b:
-        {a:
-         {r: {None: None }}}}},
-     b:
-      {a:
-       {r: {None: None},
-        z:{None: None}}}}
-    """
-    # we'll have 26 choices on the first level
-    root_dict = {}
-    for word in words:
-        current_dict = root_dict
-        # start adding letters to the dict on the corresponding level, beginning with root
-        for letter in word:
-            current_dict = current_dict.setdefault(letter, {})
-            # a word is now represented with keys in nested dicts -- terminate it with None
-        current_dict = current_dict.setdefault(None, None)
-    return root_dict
