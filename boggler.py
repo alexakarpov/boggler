@@ -35,64 +35,7 @@ def filter_acceptable(list_of_words):
 
 # borrow Unix built-in dictionary
 dictionary_list = filter_acceptable([line for line in open('/usr/share/dict/words', 'r')])
-print("built a dictionary of %d English words" % (len(dictionary_list)))
-# ..and turn it into a trie, which would help searching for words A LOT.
-
-
-def build_trie(words):
-    """
-    Create a trie out of a flat list of words. Trie will be a dict of dicts (of dicts, etc).
-    Example:
-    ["foo","foobar","bar","baz"] =>
-    {f:
-     {o:
-      {o: { None: None},
-       b:
-        {a:
-         {r: {None: None }}}}},
-     b:
-      {a:
-       {r: {None: None},
-        z:{None: None}}}}
-    """
-    # we'll have 26 choices on the first level
-    root_dict = {}
-    for word in words:
-        current_dict = root_dict
-        # start adding letters to the dict on the corresponding level, beginning with root
-        for letter in word:
-            current_dict = current_dict.setdefault(letter, {})
-        # a word is now represented with keys in nested dicts -- terminate it
-        current_dict.setdefault(None)
-    return root_dict
-
-test_trie = build_trie(["bar", "baz", "bars"])
-print(test_trie)
-
-#print("now building the big trie")
-#trie_dict = build_trie(dictionary_list)
-
-
-def is_word_in_trie(word, trie):
-    idx = 0
-    done = False
-    current_dict = trie
-    while not done:
-        letter = word[idx]
-        if not letter in current_dict:
-            return False
-        # continue with the rest of the letters
-        current_dict = current_dict[letter]
-        idx += 1
-        if idx >= len(word): # reached the end of the word
-            return not current_dict[None]
-
-assert not is_word_in_trie("foobar", test_trie)
-assert not is_word_in_trie("bara", test_trie)
-assert not is_word_in_trie("baza", test_trie)
-assert is_word_in_trie("bar", test_trie)
-assert is_word_in_trie("bars", test_trie)
-assert is_word_in_trie("baz", test_trie)
+print("prepared a dictionary of %d English words" % (len(dictionary_list)))
 
 
 def get_neighbours(v):
@@ -105,7 +48,7 @@ assert get_neighbours((2, 2)) == [(1, 1), (1, 2), (1, 3), (2, 1), (2, 3), (3, 1)
 assert get_neighbours((1, 1)) == [(1, 2), (2, 1), (2, 2)]
 
 
-def find_words_dfs(graph, vertex):
+def find_words_naive(graph, vertex):
     """
     graph - a square list of tuples,
     vertex - a Node representing the starting cell
@@ -145,17 +88,153 @@ class BoggleSolver:
 
 
 # Now let's play some Boggle!
+
+import time
+
+raw_result = []
+
+start_time = time.time()
+
+for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
+    raw_result = raw_result + find_words_naive(test_board_size3, start)
+
+result = []
+
+for word in raw_result:
+    if word in dictionary_list:
+        result.append(word)
+result = list(set(result))
+
+print("size 3 boggle solver without pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
+
+BOARD_SIZE = 4
+
+raw_result = []
+
+start_time = time.time()
+
+for start in [(r, c) for r in range(1, 4) for c in range(1, 4)]:
+    raw_result = raw_result + find_words_naive(test_board_size4, start)
+
+result = []
+
+for word in raw_result:
+    if word in dictionary_list:
+        result.append(word)
+result = list(set(result))
+
+print("size 4 boggle solver without pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
+
+#OK that works, but it is slow as hell, because we keep looking for all possible paths, even when it's obviously not
+#leading to any real word! We need to add pruning of hopeless paths, and we can do it if we convert our dictionary into
+#a TRIE using build_trie below, and prune when performing DFS by using is_word_in_trie
+
+
+def build_trie(words):
+    """
+    Create a trie out of a flat list of words. Trie will be a dict of dicts (of dicts, etc).
+    Example:
+    ["foo","foobar","bar","baz"] =>
+    {f:
+     {o:
+      {o: { None: None},
+       b:
+        {a:
+         {r: {None: None }}}}},
+     b:
+      {a:
+       {r: {None: None},
+        z:{None: None}}}}
+    """
+    # we'll have 26 choices on the first level
+    root_dict = {}
+    for word in words:
+        current_dict = root_dict
+        # start adding letters to the dict on the corresponding level, beginning with root
+        for letter in word:
+            current_dict = current_dict.setdefault(letter, {})
+            # a word is now represented with keys in nested dicts -- terminate it
+        current_dict.setdefault(None)
+    return root_dict
+
+
+def is_prefix_in_trie(word, trie, strict=False):
+    idx = 0
+    done = False
+    current_dict = trie
+    while not done:
+        letter = word[idx]
+        if not letter in current_dict:
+            return False
+            # continue with the rest of the letters
+        current_dict = current_dict[letter]
+        idx += 1
+        if idx >= len(word): # reached the end of the word
+            if not strict:
+                return len(current_dict) >= 1
+            if strict:
+                return None in current_dict
+
+
+test_trie = build_trie(["bar", "baz", "bars"])
+
+assert not is_prefix_in_trie("foobar", test_trie)
+assert not is_prefix_in_trie("bara", test_trie)
+assert not is_prefix_in_trie("baza", test_trie)
+assert is_prefix_in_trie("b", test_trie)
+assert is_prefix_in_trie("ba", test_trie)
+assert is_prefix_in_trie("bar", test_trie)
+assert is_prefix_in_trie("bars", test_trie)
+assert is_prefix_in_trie("baz", test_trie)
+
+
+# now building the big trie
+big_trie = build_trie(dictionary_list)
+
+
+def find_words_with_pruning(graph, vertex, trie):
+    """
+    graph - a square list of tuples,
+    vertex - a tuple representing the starting cell
+    """
+    results = []
+
+    def visit(node, visited, word_so_far):
+        visited.append(node)
+        word_so_far += graph[node[0] - 1][node[1] - 1]
+        if not is_prefix_in_trie(word_so_far, trie):  # prune!
+            return
+
+        if len(word_so_far) >= MIN_WORD_LENGTH and is_prefix_in_trie(word_so_far, trie, True):
+            results.append(word_so_far)
+
+        neighbours = get_neighbours(node)
+        for next_coordinates in neighbours:
+            next_node = (next_coordinates[0], next_coordinates[1])
+            if not next_node in visited:
+                visit(next_node, list(visited), word_so_far)
+
+    visit(vertex, [], "")
+    return results
+
+
+BOARD_SIZE = 3
+start_time = time.time()
 result = []
 for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
-    words_at_start = find_words_dfs(test_board_size3, start)
-    print("found %d paths (maybe-words) starting at %s" %(len(words_at_start), start,))
-    result = result + words_at_start
+    result = result + find_words_with_pruning(test_board_size3, start, big_trie)
 
-for line in result:
-    if line in dictionary_list:
-        print("found a word! : %s" % line)
+result = list(set(result))
+print("size 3 boggle solver with pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
 
 
-# OK that works, but it is slow as hell, because we keep looking for all possible paths, even when it's obviously not
-# leading to any real word! We need to add pruning of hopeless paths, and we can do it if we convert our dictionary into
-# a TRIE.
+start_time = time.time()
+result = []
+BOARD_SIZE = 4
+for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
+    result = result + find_words_with_pruning(test_board_size4, start, big_trie)
+
+result = list(set(result))
+print("size 4 boggle solver with pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
+
+print(result)
