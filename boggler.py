@@ -33,11 +33,6 @@ assert is_acceptable("marketplace") and not is_acceptable("zygote's") and not is
 def filter_acceptable(list_of_words):
     return [word.strip() for word in list_of_words if is_acceptable(word)]
 
-# borrow Unix built-in dictionary
-dictionary_list = filter_acceptable([line for line in open('/usr/share/dict/words', 'r')])
-print("prepared a dictionary of %d English words" % (len(dictionary_list)))
-
-
 def get_neighbours(v):
     row = v[0]
     column = v[1]
@@ -72,26 +67,6 @@ def find_words_naive(graph, vertex):
     visit(vertex, [vertex], "")
     return results
 
-# Now let's play some Boggle!
-
-import time
-
-raw_result = []
-
-start_time = time.time()
-
-for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
-    raw_result = raw_result + find_words_naive(test_board_size3, start)
-
-result = []
-
-for word in raw_result:
-    if word in dictionary_list:
-        result.append(word)
-result = list(set(result))
-
-print("size 3 boggle solver without pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
-print(result)
 
 # ********** DO NO RUN THE EXAMPLE BELOW! Naive solver function will take forever!
 # BOARD_SIZE = 4
@@ -181,10 +156,6 @@ assert is_prefix_in_trie("bars", test_trie)
 assert is_prefix_in_trie("baz", test_trie)
 
 
-# now building the big trie
-big_trie = build_trie(dictionary_list)
-
-
 def find_words_with_pruning(graph, vertex, trie):
     """
     graph - a square list of tuples,
@@ -214,23 +185,67 @@ def find_words_with_pruning(graph, vertex, trie):
     visit(vertex, [], "")
     return results
 
+## utility functions
 
-BOARD_SIZE = 3
-start_time = time.time()
-result = []
-for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
-    result = result + find_words_with_pruning(test_board_size3, start, big_trie)
 
-result = list(set(result))
-print("size 3 boggle solver with pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
-print(result)
+def load_dictionary():
+    return filter_acceptable([line for line in open('/usr/share/dict/words', 'r')])
 
-start_time = time.time()
-result = []
-BOARD_SIZE = 4
-for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
-    result = result + find_words_with_pruning(test_board_size4, start, big_trie)
 
-result = list(set(result))
-print("size 4 boggle solver with pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
-print(result)
+def solve_boggle(board):
+    result = []
+    BOARD_SIZE = 4
+    for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
+        result = result + find_words_with_pruning(board, start, build_trie(load_dictionary()))
+    return list(set(result))  # remove duplicates
+
+if __name__ == '__main__':
+
+    # let's play some Boggle!
+
+    import time
+    # borrow Unix built-in dictionary
+    dictionary_list = load_dictionary()
+    print("prepared a dictionary of %d English words" % (len(dictionary_list)))
+
+    raw_result = []
+
+    start_time = time.time()
+
+    for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
+        raw_result = raw_result + find_words_naive(test_board_size3, start)
+
+    result = []
+
+    for word in raw_result:
+        if word in dictionary_list:
+            result.append(word)
+    result = list(set(result))
+
+    print("size 3 boggle solver without pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
+    print(result)
+
+    print("Not playing 4X4 boggle with naive solution, because it'll take forever")
+
+    # now building the big trie
+    big_trie = build_trie(dictionary_list)
+
+    BOARD_SIZE = 3
+    start_time = time.time()
+    result = []
+    for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
+        result = result + find_words_with_pruning(test_board_size3, start, big_trie)
+
+    result = list(set(result))
+    print("size 3 boggle solver with pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
+    print(result)
+
+    start_time = time.time()
+    result = []
+    BOARD_SIZE = 4
+    for start in [(r, c) for r in range(1, BOARD_SIZE + 1) for c in range(1, BOARD_SIZE + 1)]:
+        result = result + find_words_with_pruning(test_board_size4, start, big_trie)
+
+    result = list(set(result))
+    print("size 4 boggle solver with pruning took %d seconds, found %d words" % (time.time() - start_time, len(result)))
+    print(result)
